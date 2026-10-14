@@ -273,6 +273,23 @@ def test_equal_length_uniform_grid_cannot_hide_reversed_source_banks(caplog):
     assert "shank main" in caplog.text
 
 
+def test_overlapping_main_surface_row_provenance_is_ambiguous(caplog):
+    provenance = {
+        "version": 3,
+        "shanks": {
+            "0": {
+                "blocks": [
+                    {"label": "main", "rows": list(range(384))},
+                    {"label": "surface", "rows": list(range(384))},
+                ]
+            }
+        },
+    }
+    cache = _cache(_paired(_bank_depths()), np.ones((1, 192)), provenance=provenance)
+    assert resolve_plot_payload(cache, "line.unit_density") is None
+    assert "overlapping main/surface" in caplog.text
+
+
 @pytest.mark.parametrize(
     "provenance",
     [

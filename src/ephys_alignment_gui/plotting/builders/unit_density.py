@@ -121,7 +121,9 @@ class UnitDensityPlotDataBuilder:
                 "active plot geometry differs from stream shank coverage; "
                 "supply explicit channels.shankInd.npy"
             )
-        _validate_source_order(entry, coords, rows_by_shank, depths_by_shank)
+        _validate_source_order(
+            entry, coords, rows_by_shank, depths_by_shank, density.shape
+        )
         values = density[shank_idx]
         return {
             "x": values,
@@ -161,7 +163,7 @@ def _validate_producer_depths(depths, shape, shank_idx):
         )
 
 
-def _validate_source_order(entry, coords, rows_by_shank, depths_by_shank):
+def _validate_source_order(entry, coords, rows_by_shank, depths_by_shank, shape):
     """Prove main/surface ordering using producer block-to-channel provenance."""
     metadata = entry.get("row_channels")
     metadata_path = entry.get("row_channels_path", "band_corr/row_channels.json")
@@ -189,10 +191,11 @@ def _validate_source_order(entry, coords, rows_by_shank, depths_by_shank):
             rows_by_shank[idx],
             depths_by_shank[idx],
             metadata_path,
+            shape,
         )
 
 
-def _validate_shank_sources(blocks, coords, rows, depths, metadata_path):
+def _validate_shank_sources(blocks, coords, rows, depths, metadata_path, shape):
     if not isinstance(blocks, list) or not blocks:
         raise ValueError(f"missing main/surface block geometry at {metadata_path}")
     sources = {"main": set(), "surface": set()}
@@ -215,6 +218,11 @@ def _validate_shank_sources(blocks, coords, rows, depths, metadata_path):
             pitches.append(float(spacing.min()))
     if sources["main"] | sources["surface"] != allowed_rows or not pitches:
         raise ValueError(f"incomplete source channel coverage at {metadata_path}")
+    if sources["main"] & sources["surface"]:
+        raise ValueError(
+            f"overlapping main/surface channel coverage at {metadata_path}; "
+            "density source ordering is ambiguous"
+        )
     pitch = min(pitches)
     if not np.isclose(pitch, np.diff(depths).min()):
         raise ValueError(
@@ -225,5 +233,9 @@ def _validate_shank_sources(blocks, coords, rows, depths, metadata_path):
         if not source_rows:
             continue
         source_depths = np.unique(coords[sorted(source_rows), 1])
-        _validate_producer_depths(source_depths - offset, (1, depths.size), label)
+        if not np.allclose(np.diff(source_depths), pitch):
+            raise ValueError(
+                f"{label} row pitch differs from stream geometry at {metadata_path}"
+            )
+        _validate_producer_depths(source_depths - offset, shape, label)
         offset += source_depths.size * pitch
