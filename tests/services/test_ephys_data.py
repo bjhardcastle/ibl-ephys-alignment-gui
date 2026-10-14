@@ -369,5 +369,4 @@ def test_missing_or_malformed_density_provenance_keeps_other_stream_data(
     assert "row_channels" not in entry
     assert entry["row_channels_path"] == provenance_path
     assert str(provenance_path) in entry["provenance_error"]
-    assert len(caplog.records) == 1
-    assert str(provenance_path) in caplog.text
+    assert not caplog.records

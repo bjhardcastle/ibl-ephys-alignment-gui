@@ -400,10 +400,6 @@ class EphysDataService:
                 raise ValueError("expected a JSON object with shank/block row provenance")
         except (OSError, ValueError) as exc:
             entry["provenance_error"] = f"{provenance_path}: {exc}"
-            logger.warning(
-                "Optional raw_unit_density provenance unavailable: %s",
-                entry["provenance_error"],
-            )
             return
         entry["row_channels"] = provenance
 
