@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from zipfile import BadZipFile
 
 import numpy as np
 import one.alf.io as alfio
@@ -252,6 +254,7 @@ class EphysDataService:
         data = self._load_alf_objects(ephys_dir)
         self._attach_channel_table(data, channel_table)
         self._attach_optional_shank_arrays(data, ephys_dir)
+        self._attach_raw_unit_density(data, probe)
 
         return EphysStreamData(
             recording_id=probe.recording_id,
@@ -331,6 +334,74 @@ class EphysDataService:
         unit_shank_indices_file = ephys_dir / "unit_shank_indices.npy"
         if unit_shank_indices_file.exists():
             data["unit_shank_indices"] = np.load(unit_shank_indices_file)
+
+    @staticmethod
+    def _attach_raw_unit_density(data: dict[str, Any], probe: ProbeInfo) -> None:
+        advertised = probe.raw_unit_density is not None
+        path = probe.raw_unit_density
+        if path is None:
+            path = probe.ephys_dir / "_iblqc_ephysRawUnitDensity.density.npy"
+        entry: dict[str, Any] = {"exists": False, "path": path}
+        data["raw_unit_density"] = entry
+        if probe.raw_unit_density_error is not None:
+            entry["error"] = probe.raw_unit_density_error
+            return
+        if not advertised and not path.exists():
+            return
+
+        expected = "nonempty real numeric finite (n_shanks, n_bins)"
+        try:
+            density = np.load(path, allow_pickle=False)
+        except (OSError, ValueError, EOFError, BadZipFile) as exc:
+            observed = "dims/dtype unavailable"
+            try:
+                with path.open("rb") as file:
+                    version = np.lib.format.read_magic(file)
+                    reader = {
+                        (1, 0): np.lib.format.read_array_header_1_0,
+                        (2, 0): np.lib.format.read_array_header_2_0,
+                    }.get(version)
+                    if reader is not None:
+                        shape, _, dtype = reader(file)
+                        observed = f"dims={shape}, dtype={dtype}"
+            except (OSError, ValueError, EOFError):
+                pass
+            entry["error"] = f"{exc}; observed {observed}; expected {expected}"
+            logger.warning(
+                "Optional raw_unit_density at %s could not be loaded: %s",
+                path,
+                entry["error"],
+            )
+            return
+        if (
+            not isinstance(density, np.ndarray)
+            or density.ndim != 2
+            or density.size == 0
+            or density.dtype.kind not in "iuf"
+            or not np.isfinite(density).all()
+        ):
+            shape = getattr(density, "shape", None)
+            dtype = getattr(density, "dtype", None)
+            if isinstance(density, np.lib.npyio.NpzFile):
+                density.close()
+            entry["error"] = (
+                f"observed dims={shape}, dtype={dtype}; expected {expected}"
+            )
+            logger.warning(
+                "Ignoring optional raw_unit_density at %s: %s", path, entry["error"]
+            )
+            return
+        entry.update(exists=True, density=density)
+        provenance_path = probe.ephys_dir / "band_corr" / "row_channels.json"
+        entry["row_channels_path"] = provenance_path
+        try:
+            provenance = json.loads(provenance_path.read_text())
+            if not isinstance(provenance, dict):
+                raise ValueError("expected a JSON object with shank/block row provenance")
+        except (OSError, ValueError) as exc:
+            entry["provenance_error"] = f"{provenance_path}: {exc}"
+            return
+        entry["row_channels"] = provenance
 
     @staticmethod
     def _load_session_notes(ephys_dir: Path) -> str:

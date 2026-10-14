@@ -465,6 +465,19 @@ PLOT_MENU_ENTRIES: tuple[PlotSpec | DynamicPlotSpec, ...] = (
         available=_data_exists("spikes"),
     ),
     PlotSpec(
+        key="line.unit_density",
+        label="Unit density",
+        menu="line",
+        renderer="line",
+        source=_source(
+            ("unit_density_data_line",),
+            lambda payload_cache: payload_cache.get_unit_density_data_line(),
+        ),
+        available=lambda payload_cache: bool(
+            getattr(getattr(payload_cache, "unit_density_builder", None), "available", False)
+        ),
+    ),
+    PlotSpec(
         key="probe.rms_ap",
         label="RMS AP",
         menu="probe",
