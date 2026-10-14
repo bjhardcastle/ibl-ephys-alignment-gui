@@ -215,6 +215,105 @@ def test_loads_basic_mouse_root(tmp_path):
     assert mr.probes_for_session("rec1") == ["probeA"]
 
 
+@pytest.mark.parametrize("schema_version", ["3.0.0", "3.1.0", "3.2.0", "4.0.0", "4.1.0"])
+def test_raw_unit_density_is_optional_for_existing_packages(tmp_path, schema_version):
+    root = _make_mouse_root(
+        tmp_path, schema_version=schema_version, pipeline_geometry=True
+    )
+    probe = _load(root).get_probe("rec1", "probeA")
+    assert probe.raw_unit_density is None
+    assert probe.raw_unit_density_error is None
+
+
+@pytest.mark.parametrize("external", [False, True])
+def test_resolves_raw_unit_density_reference(tmp_path, external):
+    root = _make_mouse_root(
+        tmp_path, schema_version="4.1.0", pipeline_geometry=True
+    )
+    manifest = root / "datapackage.json"
+    data = json.loads(manifest.read_text())
+    within = "density.npy"
+    if external:
+        asset_dir = tmp_path / "density_asset"
+        asset_dir.mkdir()
+        data["external_assets"]["density"] = {
+            "role": "ephys",
+            "name": "density_asset",
+        }
+        ref = _ref(within, "density")
+        expected = asset_dir / within
+    else:
+        ref = _ref(within)
+        expected = root / within
+    expected.touch()
+    data["probes"]["rec1"]["probeA"]["raw_unit_density"] = ref
+    manifest.write_text(json.dumps(data))
+
+    probe = _load(root).get_probe("rec1", "probeA")
+    assert probe.raw_unit_density == expected
+    assert probe.raw_unit_density_error is None
+
+
+@pytest.mark.parametrize("failure", ["unknown_asset", "missing_asset", "missing_path"])
+def test_unresolvable_optional_density_preserves_other_probes(
+    tmp_path, caplog, failure
+):
+    root = _make_mouse_root(
+        tmp_path, schema_version="4.1.0", pipeline_geometry=True
+    )
+    manifest = root / "datapackage.json"
+    data = json.loads(manifest.read_text())
+    data["probes"]["rec1"]["probeB"] = dict(data["probes"]["rec1"]["probeA"])
+    data["probes"]["rec1"]["probeA"]["raw_unit_density"] = _ref(
+        "missing_density.npy", "density"
+    )
+    overrides = {}
+    if failure != "unknown_asset":
+        data["external_assets"]["density"] = {
+            "role": "ephys",
+            "name": "missing_density_asset",
+        }
+    if failure == "missing_path":
+        overrides["density"] = root
+    manifest.write_text(json.dumps(data))
+
+    mouse = load_mouse_root(
+        root, asset_roots=[tmp_path], asset_overrides=overrides
+    )
+    probe = mouse.get_probe("rec1", "probeA")
+    assert probe.raw_unit_density == Path("missing_density.npy")
+    assert "missing_density.npy" in probe.raw_unit_density_error
+    assert mouse.get_probe("rec1", "probeB").raw_unit_density is None
+    warnings = [record for record in caplog.records if "raw_unit_density" in record.message]
+    assert len(warnings) == 1
+    assert "rec1/probeA" in warnings[0].message
+
+
+def test_missing_local_density_reference_remains_authoritative(tmp_path):
+    root = _make_mouse_root(
+        tmp_path, schema_version="4.1.0", pipeline_geometry=True
+    )
+    manifest = root / "datapackage.json"
+    data = json.loads(manifest.read_text())
+    data["probes"]["rec1"]["probeA"]["raw_unit_density"] = _ref("missing.npy")
+    manifest.write_text(json.dumps(data))
+
+    assert _load(root).get_probe("rec1", "probeA").raw_unit_density == root / "missing.npy"
+
+
+def test_rejects_malformed_raw_unit_density_path_reference(tmp_path):
+    root = _make_mouse_root(
+        tmp_path, schema_version="4.1.0", pipeline_geometry=True
+    )
+    manifest = root / "datapackage.json"
+    data = json.loads(manifest.read_text())
+    data["probes"]["rec1"]["probeA"]["raw_unit_density"] = "density.npy"
+    manifest.write_text(json.dumps(data))
+
+    with pytest.raises(DataPackageError, match="raw_unit_density"):
+        _load(root)
+
+
 def test_transforms_resolve_via_asset_root_search(tmp_path):
     root = _make_mouse_root(tmp_path)
     mr = _load(root)

@@ -14,6 +14,7 @@ runtime configuration supplied by the deployment/user.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -23,6 +24,8 @@ from ephys_alignment_gui.io.datapackage_schema import (
     DatapackageContractError,
     validate_datapackage_contract,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class DataPackageError(RuntimeError):
@@ -164,7 +167,11 @@ class ChannelTablePaths:
 
 @dataclass(frozen=True)
 class ProbeInfo:
-    """Resolved metadata and paths for a single probe."""
+    """Resolved metadata and paths for a single probe.
+
+    A density resolution error retains the advertised path for diagnostics only;
+    callers must not load that path or substitute a conventional density file.
+    """
 
     probe_id: str
     probe_name: str
@@ -175,6 +182,8 @@ class ProbeInfo:
     ephys_dir: Path | None
     channel_table: ChannelTablePaths | None
     xyz_picks: tuple[XyzPicks, ...]
+    raw_unit_density_error: str | None = None
+    raw_unit_density: Path | None = None
 
     def picks_for_shank(self, shank_idx: int) -> XyzPicks:
         """Return the xyz-picks entry for a given 0-based shank index."""
@@ -526,6 +535,23 @@ def _parse_probes(
             channel_table = _parse_channel_table(
                 entry.get("channel_table"), resolver, assets
             )
+            density_path = None
+            density_error = None
+            density_ref = entry.get("raw_unit_density")
+            if density_ref is not None:
+                try:
+                    density_path = _resolve_ref(density_ref, resolver, assets)
+                except DataPackageError as exc:
+                    # Retain the advertised path and failure: absence alone would
+                    # permit loading a different, conventional density file.
+                    density_path = Path(_parse_path_ref(density_ref).path)
+                    density_error = str(exc)
+                    logger.warning(
+                        "Optional raw_unit_density for %s/%s is unavailable: %s",
+                        recording_id,
+                        ephys_collection,
+                        exc,
+                    )
             recording_entries[ephys_collection] = ProbeInfo(
                 probe_id=entry["probe_id"],
                 probe_name=ephys_collection,
@@ -538,6 +564,8 @@ def _parse_probes(
                 else None,
                 channel_table=channel_table,
                 xyz_picks=picks,
+                raw_unit_density_error=density_error,
+                raw_unit_density=density_path,
             )
     return probes
 

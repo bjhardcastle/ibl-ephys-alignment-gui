@@ -256,6 +256,18 @@
           "title": "Probe Id",
           "type": "string"
         },
+        "raw_unit_density": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PathReference"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional raw-unit density array with shape (n_shanks, n_bins)."
+        },
         "xyz_picks": {
           "items": {
             "$ref": "#/$defs/XyzPicks"

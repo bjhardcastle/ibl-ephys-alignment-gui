@@ -153,6 +153,34 @@ schemas for versions 3.0.0, 3.1.0, 3.2.0, 4.0.0, and 4.1.0. It uses the
 datapackage hierarchy as the source of recording/probe identity; it does not
 infer sessions by scanning directories.
 
+### Optional Unit Density Profile
+
+Choose **Line plot → Unit density** to show the producer's raw-AP activity
+profile horizontally against physical probe depth (µm), with the tip at the
+bottom. Values are displayed unchanged; sorted-unit filters do not affect it.
+This is an activity proxy, not an absolute count of sorted units.
+
+The optional `_iblqc_ephysRawUnitDensity.density.npy` must contain a finite real
+numeric array `(n_shanks, n_bins)`. Rows follow the stream's sorted present
+shanks, including split-stream recordings; bins follow ascending axial rows.
+The GUI uses the datapackage's `raw_unit_density` path reference (including
+external assets), or the conventional ephys-directory filename when no reference
+is advertised. Older packages without density remain usable.
+
+Before enabling the menu entry, the GUI checks every shank's unique physical
+axial positions and full bank coverage, not a fixed channels-to-bins ratio.
+The inspected producer writes complete 3840-µm bank grids, main banks before
+surface banks. Accordingly, channel coordinates must prove a complete,
+zero-origin grid at the recorded row pitch, and version-3
+`band_corr/row_channels.json` block provenance must confirm source order.
+Missing provenance, partial/gapped/offset banks, incompatible dimensions,
+nonfinite values or corrupt files hide this option and log the paths and reason.
+The GUI never stretches, truncates, tiles, resamples or invents coordinates to
+make incompatible data fit.
+
+Producer ordering reference:
+[`compose_raw_unit_density`](https://github.com/bjhardcastle/aind-ephys-ibl-gui-conversion/blob/7731283a10ed8b9fd7aa1a0ef9a49b8a289682fa/src/aind_ephys_ibl_gui_conversion/unit_density.py#L298-L362).
+
 ## Keyboard Shortcuts
 
 Every shortcut is also shown in the GUI menu bar. The menu construction in
