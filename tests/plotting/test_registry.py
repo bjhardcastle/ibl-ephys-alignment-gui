@@ -42,6 +42,9 @@ class FakePayloadCache:
     def get_fr_amp_data_line(self) -> Any:
         return "line-fr", "line-amp"
 
+    def get_unit_density_data_line(self) -> Any:
+        return "line-unit-density"
+
     def get_rms_data_img_probe(self, _format: str) -> Any:
         return "image-rms", "probe-rms"
 
@@ -113,6 +116,16 @@ def test_resolve_plot_payload_uses_typed_cache_key_and_index() -> None:
     assert payload_cache.calls == [("rms_data_img_probe", "AP")]
 
 
+def test_resolve_unit_density_line_payload() -> None:
+    payload_cache = FakePayloadCache()
+
+    assert (
+        resolve_plot_payload(payload_cache, "line.unit_density")
+        == "line-unit-density"
+    )
+    assert payload_cache.calls == [("unit_density_data_line",)]
+
+
 def test_resolve_plot_payload_passes_raster_request_to_raster_source() -> None:
     payload_cache = FakePayloadCache()
     raster_request = object()
@@ -156,6 +169,7 @@ def test_available_plot_specs_hide_static_entries_for_missing_datasets() -> None
         "rms_LF_main": {"exists": False},
         "psd_lf": {"exists": False},
         "psd_lf_main": {"exists": False},
+        "raw_unit_density": {"exists": False},
     }
 
     image_keys = [
@@ -173,6 +187,20 @@ def test_available_plot_specs_hide_static_entries_for_missing_datasets() -> None
     assert "image.rms_lfp" in image_keys
     assert "probe.rms_lfp" in probe_keys
     assert line_keys == []
+
+
+def test_available_line_specs_include_advertised_unit_density() -> None:
+    payload_cache = FakePayloadCache()
+    payload_cache.data = {
+        "spikes": {"exists": False},
+        "raw_unit_density": {"exists": True},
+    }
+
+    line_keys = [
+        spec.key for spec in available_plot_specs_for_menu(payload_cache, "line")
+    ]
+
+    assert line_keys == ["line.unit_density"]
 
 
 def test_available_plot_specs_include_dynamic_probe_payloads_and_bounds() -> None:

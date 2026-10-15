@@ -19,6 +19,9 @@ from ephys_alignment_gui.plotting.builders.raw import RawTracePlotDataBuilder
 from ephys_alignment_gui.plotting.builders.rms import RmsPlotDataBuilder
 from ephys_alignment_gui.plotting.builders.spikes import SpikePlotDataBuilder
 from ephys_alignment_gui.plotting.builders.stimulus import StimulusPlotDataBuilder
+from ephys_alignment_gui.plotting.builders.unit_density import (
+    UnitDensityPlotDataBuilder,
+)
 from ephys_alignment_gui.plotting.channel_geometry import (
     PlotChannelGeometry,
     build_plot_channel_geometry,
@@ -74,6 +77,11 @@ class EphysPlotPayloadCache:
             data,
             self.channel_geometry,
             self.spike_builder,
+        )
+        self.unit_density_builder = UnitDensityPlotDataBuilder(
+            data,
+            self.channel_geometry,
+            shank_idx,
         )
 
         logger.debug("Spike idx: %s", self.spike_idx)
@@ -158,6 +166,10 @@ class EphysPlotPayloadCache:
     def get_fr_amp_data_line(self):
         """Return firing-rate and amplitude depth-profile line payloads."""
         return self.spike_builder.get_fr_amp_data_line()
+
+    def get_unit_density_data_line(self):
+        """Return the normalized raw activity-density depth profile."""
+        return self.unit_density_builder.build()
 
     def get_spike_correlation_data_img(self):
         """Return depth-bin spike count correlation image payload."""

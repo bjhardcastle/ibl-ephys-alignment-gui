@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -166,3 +167,34 @@ def test_ephys_data_service_loads_stream_data(monkeypatch, tmp_path):
     assert stream.alf_data["rms_AP"]["xaxis"] == "Time (s)"
     assert stream.alf_data["spike_shanks"].tolist() == [0, 1, 1]
     assert stream.channel_collection(1).depths.tolist() == [0.0, 20.0]
+
+
+def test_ephys_data_service_loads_advertised_raw_unit_density(
+    monkeypatch, tmp_path
+):
+    local_coordinates = np.array([[0.0, 0.0], [0.0, 20.0]])
+    ephys_dir = tmp_path / "ephys"
+    channel_paths = _write_channel_table_files(
+        ephys_dir,
+        local_coordinates=local_coordinates,
+        shank_indices=np.array([0, 0]),
+    )
+    density_path = ephys_dir / "_iblqc_ephysRawUnitDensity.density.npy"
+    expected = np.array([[0.0, 2.0, 1.0]], dtype=np.float32)
+    np.save(density_path, expected)
+
+    monkeypatch.setattr(
+        "ephys_alignment_gui.services.ephys_data.alfio.load_object",
+        lambda _folder, _object_name: {},
+    )
+    probe = replace(
+        _probe_info(ephys_dir, channel_paths),
+        raw_unit_density=density_path,
+    )
+
+    stream = EphysDataService().load_stream_data(probe)
+
+    assert stream.alf_data["raw_unit_density"]["exists"] is True
+    np.testing.assert_array_equal(
+        stream.alf_data["raw_unit_density"]["density"], expected
+    )

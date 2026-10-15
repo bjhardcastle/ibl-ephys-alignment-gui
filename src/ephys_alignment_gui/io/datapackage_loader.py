@@ -175,6 +175,7 @@ class ProbeInfo:
     ephys_dir: Path | None
     channel_table: ChannelTablePaths | None
     xyz_picks: tuple[XyzPicks, ...]
+    raw_unit_density: Path | None = None
 
     def picks_for_shank(self, shank_idx: int) -> XyzPicks:
         """Return the xyz-picks entry for a given 0-based shank index."""
@@ -523,6 +524,7 @@ def _parse_probes(
                 for p in entry["xyz_picks"]
             )
             ephys_rel = entry.get("ephys")
+            raw_unit_density_ref = entry.get("raw_unit_density")
             channel_table = _parse_channel_table(
                 entry.get("channel_table"), resolver, assets
             )
@@ -538,6 +540,11 @@ def _parse_probes(
                 else None,
                 channel_table=channel_table,
                 xyz_picks=picks,
+                raw_unit_density=_resolve_ref(
+                    raw_unit_density_ref, resolver, assets
+                )
+                if raw_unit_density_ref is not None
+                else None,
             )
     return probes
 

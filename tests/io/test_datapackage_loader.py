@@ -358,6 +358,26 @@ def test_probe_info_resolves_paths(tmp_path):
     assert pk.shank is None
 
 
+def test_probe_info_resolves_optional_raw_unit_density(tmp_path):
+    root = _make_mouse_root(
+        tmp_path,
+        schema_version="4.1.0",
+        pipeline_geometry=True,
+    )
+    density_path = root / "rec1/probeA/_iblqc_ephysRawUnitDensity.density.npy"
+    density_path.touch()
+    dp_path = root / "datapackage.json"
+    data = json.loads(dp_path.read_text())
+    data["probes"]["rec1"]["probeA"]["raw_unit_density"] = _ref(
+        "rec1/probeA/_iblqc_ephysRawUnitDensity.density.npy"
+    )
+    dp_path.write_text(json.dumps(data))
+
+    probe = _load(root).get_probe("rec1", "probeA")
+
+    assert probe.raw_unit_density == density_path
+
+
 def test_null_ccf_pick_is_tolerated(tmp_path):
     # CCF picks are a QC-only output (emit_qc); the producer writes
     # ``ccf: null`` when QC is off. The GUI never reads them, so loading

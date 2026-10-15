@@ -252,6 +252,7 @@ class EphysDataService:
         data = self._load_alf_objects(ephys_dir)
         self._attach_channel_table(data, channel_table)
         self._attach_optional_shank_arrays(data, ephys_dir)
+        self._attach_raw_unit_density(data, probe.raw_unit_density)
 
         return EphysStreamData(
             recording_id=probe.recording_id,
@@ -331,6 +332,27 @@ class EphysDataService:
         unit_shank_indices_file = ephys_dir / "unit_shank_indices.npy"
         if unit_shank_indices_file.exists():
             data["unit_shank_indices"] = np.load(unit_shank_indices_file)
+
+    @staticmethod
+    def _attach_raw_unit_density(
+        data: dict[str, Any],
+        density_path: Path | None,
+    ) -> None:
+        """Load the optional producer-advertised raw activity-density profile."""
+        if density_path is None:
+            data["raw_unit_density"] = {"exists": False}
+            return
+
+        density = np.load(density_path, allow_pickle=False)
+        if density.ndim != 2:
+            raise DataPackageError(
+                "raw_unit_density must be a 2D (shanks, depth rows) array, "
+                f"got shape {density.shape} from {density_path}"
+            )
+        data["raw_unit_density"] = {
+            "exists": True,
+            "density": density,
+        }
 
     @staticmethod
     def _load_session_notes(ephys_dir: Path) -> str:

@@ -147,6 +147,12 @@ calls cannot be interrupted until the native operation returns.
 
 ## Input Contract
 
+Datapackage 4.1 inputs may advertise an optional
+`raw_unit_density` probe path produced by recent preprocessing/conversion
+releases. When present, its normalized per-shank raw-activity profile appears
+as `Unit Density` in the Line Plot menu. Older packages remain supported and
+simply omit that menu entry.
+
 The selected mouse root must contain an AIND IBL ephys alignment
 `datapackage.json`. The GUI supports schema majors 3 and 4 and ships validation
 schemas for versions 3.0.0, 3.1.0, 3.2.0, 4.0.0, and 4.1.0. It uses the
