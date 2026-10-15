@@ -14,6 +14,7 @@ runtime configuration supplied by the deployment/user.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -23,6 +24,8 @@ from ephys_alignment_gui.io.datapackage_schema import (
     DatapackageContractError,
     validate_datapackage_contract,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class DataPackageError(RuntimeError):
@@ -525,6 +528,19 @@ def _parse_probes(
             )
             ephys_rel = entry.get("ephys")
             raw_unit_density_ref = entry.get("raw_unit_density")
+            raw_unit_density = None
+            if raw_unit_density_ref is not None:
+                try:
+                    raw_unit_density = _resolve_ref(
+                        raw_unit_density_ref, resolver, assets
+                    )
+                except (AssetNotFound, ReferenceNotFound) as exc:
+                    logger.warning(
+                        "Optional raw_unit_density for %s/%s is unavailable: %s",
+                        recording_id,
+                        ephys_collection,
+                        exc,
+                    )
             channel_table = _parse_channel_table(
                 entry.get("channel_table"), resolver, assets
             )
@@ -540,11 +556,7 @@ def _parse_probes(
                 else None,
                 channel_table=channel_table,
                 xyz_picks=picks,
-                raw_unit_density=_resolve_ref(
-                    raw_unit_density_ref, resolver, assets
-                )
-                if raw_unit_density_ref is not None
-                else None,
+                raw_unit_density=raw_unit_density,
             )
     return probes
 

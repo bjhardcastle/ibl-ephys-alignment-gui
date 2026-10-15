@@ -378,6 +378,31 @@ def test_probe_info_resolves_optional_raw_unit_density(tmp_path):
     assert probe.raw_unit_density == density_path
 
 
+def test_missing_external_raw_unit_density_does_not_block_mouse_root(
+    tmp_path, caplog
+):
+    root = _make_mouse_root(
+        tmp_path,
+        schema_version="4.1.0",
+        pipeline_geometry=True,
+    )
+    dp_path = root / "datapackage.json"
+    data = json.loads(dp_path.read_text())
+    data["external_assets"]["density"] = {
+        "role": "ephys",
+        "name": "missing-density-asset",
+    }
+    data["probes"]["rec1"]["probeA"]["raw_unit_density"] = _ref(
+        "density.npy", "density"
+    )
+    dp_path.write_text(json.dumps(data))
+
+    probe = _load(root).get_probe("rec1", "probeA")
+
+    assert probe.raw_unit_density is None
+    assert "Optional raw_unit_density for rec1/probeA is unavailable" in caplog.text
+
+
 def test_null_ccf_pick_is_tolerated(tmp_path):
     # CCF picks are a QC-only output (emit_qc); the producer writes
     # ``ccf: null`` when QC is off. The GUI never reads them, so loading

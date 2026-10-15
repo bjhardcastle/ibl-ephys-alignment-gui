@@ -343,7 +343,16 @@ class EphysDataService:
             data["raw_unit_density"] = {"exists": False}
             return
 
-        density = np.load(density_path, allow_pickle=False)
+        try:
+            density = np.load(density_path, allow_pickle=False)
+        except (OSError, ValueError, EOFError) as exc:
+            logger.warning(
+                "Optional raw_unit_density at %s is unavailable: %s",
+                density_path,
+                exc,
+            )
+            data["raw_unit_density"] = {"exists": False}
+            return
         if density.ndim != 2:
             raise DataPackageError(
                 "raw_unit_density must be a 2D (shanks, depth rows) array, "

@@ -198,3 +198,28 @@ def test_ephys_data_service_loads_advertised_raw_unit_density(
     np.testing.assert_array_equal(
         stream.alf_data["raw_unit_density"]["density"], expected
     )
+
+
+def test_missing_advertised_raw_unit_density_does_not_block_stream(
+    monkeypatch, tmp_path, caplog
+):
+    ephys_dir = tmp_path / "ephys"
+    channel_paths = _write_channel_table_files(
+        ephys_dir,
+        local_coordinates=np.array([[0.0, 0.0], [0.0, 20.0]]),
+        shank_indices=np.array([0, 0]),
+    )
+    missing_path = ephys_dir / "missing-density.npy"
+    monkeypatch.setattr(
+        "ephys_alignment_gui.services.ephys_data.alfio.load_object",
+        lambda _folder, _object_name: {},
+    )
+    probe = replace(
+        _probe_info(ephys_dir, channel_paths),
+        raw_unit_density=missing_path,
+    )
+
+    stream = EphysDataService().load_stream_data(probe)
+
+    assert stream.alf_data["raw_unit_density"] == {"exists": False}
+    assert str(missing_path) in caplog.text
